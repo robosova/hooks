@@ -1,0 +1,49 @@
+#!/bin/bash
+#Searching for debug info in pushing commits.
+#file stop_words using for configure list of words for searching
+
+######################
+#   Output colors    #
+######################
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+######################
+# Branch for protect #
+######################
+protectedBranch='develop'
+currentBranch=$(git symbolic-ref HEAD | sed -e 's,.*/\(.*\),\1,')
+
+if [ $currentBranch != $protectedBranch ]; then
+	echo -e "${GREEN}Current branch is $currentBranch. Nothing to protect.${NC}\n\n"
+	exit 0
+fi
+
+#####################
+#Prepare check list##
+#####################
+stopWords="/System.err.println/ ||"
+
+while read line
+do
+	stopWords+="/$line/ ||"
+done <stop_words
+
+stopWords=$(echo $stopWords | sed 's/.\{2\}$//')
+
+
+#####################
+#Searching for words#
+#####################
+
+for i in $(git log --stat origin/develop..HEAD | awk '$1 ~ /commit/ {print $2}'); do
+	git show $i | awk '{ if ($1 == "+" && ($stopWords)  exit 1}'
+	if [[ $(echo $?) != 0 ]]; then
+		echo -e "\n\n${red}Warning!${NC}\n${cyan}You have some debug prints or debug contexts. Please, remove it, then try to push again${NC}\n\n"
+		exit 1
+	fi
+done
+
+exit 0
